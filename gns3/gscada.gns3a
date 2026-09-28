@@ -1,0 +1,30 @@
+{
+    "appliance_id": "e5c7f0a0-0002-4c3a-9b2d-000000000002",
+    "name": "GSCADA",
+    "category": "guest",
+    "description": "Cliente SCADA/HMI (maestro Modbus TCP + historiador + alarmas + HMI web). Sondea uno o mas GSIMPLC (o PLCs reales) y los muestra en una web.",
+    "vendor_name": "GSIMPLC",
+    "vendor_url": "https://github.com/gsimplc/gsimplc",
+    "product_name": "GSCADA",
+    "product_url": "https://github.com/gsimplc/gsimplc",
+    "registry_version": 3,
+    "status": "stable",
+    "maintainer": "GSIMPLC",
+    "maintainer_email": "noreply@gsimplc.local",
+    "symbol": ":/symbols/monitor.svg",
+    "docker": {
+        "adapters": 1,
+        "image": "gscada:latest",
+        "console_type": "http",
+        "console_http_port": 8080,
+        "console_http_path": "/",
+        "environment": "",
+        "start_command": "",
+        "extra_hosts": "",
+        "extra_volumes": [],
+        "custom_adapters": []
+    },
+    "port_name_format": "eth{0}",
+    "port_segment_size": 0,
+    "usage": "Args por defecto en /etc/gsimplc/gscada.args. Se cambian con gsimplc-manage set-args."
+}

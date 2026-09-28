@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GSCADA — Mimic Editor</title>
+<style>
+  body { font-family: 'Consolas', monospace; background: #0f1419; color: #d6dde6; margin: 0; padding: 0; }
+  .topbar { display: flex; gap: 8px; padding: 10px 14px; background: #1a212b; border-bottom: 1px solid #2d3743; align-items: center; }
+  .topbar a { color: #d6dde6; text-decoration: none; padding: 5px 10px; border: 1px solid #2d3743; border-radius: 3px; font-size: 12px; }
+  .topbar a:hover { border-color: #ff5a3c; }
+  .topbar h1 { color: #ff5a3c; font-size: 16px; margin: 0 16px 0 0; }
+  .topbar button { background: #ff5a3c; color: #fff; border: none; padding: 6px 14px; border-radius: 3px; cursor: pointer; font: inherit; }
+  .topbar .mode { color: #7a8794; font-size: 11px; margin-left: auto; }
+  .palette { width: 180px; background: #1a212b; border-right: 1px solid #2d3743; padding: 12px; min-height: calc(100vh - 50px); float: left; }
+  .palette h3 { font-size: 11px; color: #7a8794; text-transform: uppercase; margin: 12px 0 6px; }
+  .palette button { display: block; width: 100%; margin-bottom: 4px; background: #232c38; color: #d6dde6; border: 1px solid #2d3743; padding: 6px; border-radius: 3px; cursor: pointer; font: inherit; text-align: left; }
+  .palette button:hover { border-color: #ff5a3c; }
+  .palette input, .palette select { width: 100%; background: #232c38; color: #d6dde6; border: 1px solid #2d3743; padding: 4px; font: inherit; border-radius: 3px; }
+  .canvas-wrap { margin-left: 180px; padding: 12px; }
+  canvas { background: #0a0d12; border: 1px solid #2d3743; border-radius: 4px; display: block; }
+  .footer { padding: 8px 14px; color: #7a8794; font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>Mimic Editor</h1>
+  <a href="index.html">Overview</a>
+  <a href="trends.html">Trends</a>
+  <a href="mimic.html">Mimic</a>
+  <button id="addWidget">+ Add Widget</button>
+  <button id="saveLayout">Save</button>
+  <button id="loadLayout">Load</button>
+  <span class="mode">Click + drag to move widgets. Click to select.</span>
+</div>
+<div class="palette">
+  <h3>Available Tags</h3>
+  <select id="tagSelect" size="8"></select>
+</div>
+<div class="canvas-wrap">
+  <canvas id="mimic" width="900" height="500"></canvas>
+  <div class="footer">Widgets are stored in localStorage and survive page reloads.</div>
+</div>
+<script>
+const STORAGE_KEY = "gscada.mimic.v1";
+const canvas = document.getElementById("mimic");
+const ctx = canvas.getContext("2d");
+let widgets = [];
+let selected = null;
+let drag = null;
+let tags = [];
+
+async function loadTags() {
+  const r = await fetch("/api/plcs");
+  const data = await r.json();
+  tags = [];
+  for (const plc of data.plcs) for (const t of plc.tags) tags.push({ name: t.name, unit: t.unit, plc: plc.name });
+  const sel = document.getElementById("tagSelect");
+  sel.innerHTML = "";
+  for (const t of tags) {
+    const opt = document.createElement("option");
+    opt.value = t.name;
+    opt.textContent = t.name + (t.unit ? " (" + t.unit + ")" : "");
+    sel.appendChild(opt);
+  }
+}
+
+function widgetLabel(w) { return w.tag || "(no tag)"; }
+function tagValue(w) {
+  return window.__tagValues && window.__tagValues[w.tag];
+}
+
+function drawWidget(w) {
+  ctx.save();
+  if (w === selected) { ctx.strokeStyle = "#ff5a3c"; ctx.lineWidth = 2; }
+  else { ctx.strokeStyle = "#2d3743"; ctx.lineWidth = 1; }
+  if (w.type === "tank") {
+    ctx.fillStyle = "#232c38";
+    ctx.fillRect(w.x, w.y, 80, 120);
+    const val = parseFloat(tagValue(w));
+    if (!isNaN(val)) {
+      const fillH = (Math.max(0, Math.min(100, val)) / 100) * 116;
+      ctx.fillStyle = "#00aaff";
+      ctx.fillRect(w.x + 2, w.y + 120 - fillH, 76, fillH);
+    }
+    ctx.strokeRect(w.x, w.y, 80, 120);
+    ctx.fillStyle = "#d6dde6"; ctx.font = "11px Consolas";
+    ctx.fillText(widgetLabel(w), w.x, w.y - 4);
+  } else if (w.type === "motor") {
+    const on = !!tagValue(w);
+    ctx.beginPath();
+    ctx.arc(w.x + 30, w.y + 30, 28, 0, Math.PI * 2);
+    ctx.fillStyle = on ? "#00d68f" : "#232c38";
+    ctx.fill(); ctx.stroke();
+    if (on) {
+      ctx.strokeStyle = "#00d68f"; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(w.x + 30, w.y + 30);
+      ctx.lineTo(w.x + 30 + 18 * Math.cos(Date.now() / 200), w.y + 30 + 18 * Math.sin(Date.now() / 200));
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#d6dde6"; ctx.font = "11px Consolas";
+    ctx.fillText(widgetLabel(w), w.x - 4, w.y + 80);
+  } else if (w.type === "led") {
+    const on = !!tagValue(w);
+    ctx.beginPath(); ctx.arc(w.x + 15, w.y + 15, 12, 0, Math.PI * 2);
+    ctx.fillStyle = on ? "#00d68f" : "#1a212b";
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#d6dde6"; ctx.font = "10px Consolas";
+    ctx.fillText(widgetLabel(w), w.x - 8, w.y + 44);
+  } else if (w.type === "value") {
+    ctx.fillStyle = "#232c38"; ctx.fillRect(w.x, w.y, 140, 30);
+    ctx.strokeRect(w.x, w.y, 140, 30);
+    const v = tagValue(w);
+    ctx.fillStyle = "#d6dde6"; ctx.font = "bold 13px Consolas";
+    ctx.fillText(widgetLabel(w) + ": " + (v === undefined ? "—" : v), w.x + 6, w.y + 20);
+  }
+  ctx.restore();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const w of widgets) drawWidget(w);
+  requestAnimationFrame(draw);
+}
+
+function hitTest(mx, my) {
+  for (let i = widgets.length - 1; i >= 0; i--) {
+    const w = widgets[i];
+    if (w.type === "tank" && mx >= w.x && mx <= w.x + 80 && my >= w.y && my <= w.y + 120) return w;
+    if ((w.type === "motor" || w.type === "led") && mx >= w.x && mx <= w.x + 60 && my >= w.y && my <= w.y + 60) return w;
+    if (w.type === "value" && mx >= w.x && mx <= w.x + 140 && my >= w.y && my <= w.y + 30) return w;
+  }
+  return null;
+}
+
+canvas.addEventListener("mousedown", (e) => {
+  const r = canvas.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  selected = hitTest(mx, my);
+  if (selected) drag = { x: mx - selected.x, y: my - selected.y };
+  else selected = null;
+});
+canvas.addEventListener("mousemove", (e) => {
+  if (!drag) return;
+  const r = canvas.getBoundingClientRect();
+  selected.x = e.clientX - r.left - drag.x;
+  selected.y = e.clientY - r.top - drag.y;
+});
+window.addEventListener("mouseup", () => { drag = null; });
+
+document.getElementById("addWidget").addEventListener("click", () => {
+  const sel = document.getElementById("tagSelect");
+  const tag = sel.value || (tags[0] && tags[0].name) || "";
+  const types = ["tank", "motor", "led", "value"];
+  const type = types[widgets.length % types.length];
+  widgets.push({ type, tag, x: 50 + (widgets.length * 30) % 700, y: 50 + (widgets.length * 20) % 350 });
+});
+document.getElementById("saveLayout").addEventListener("click", () => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(widgets));
+});
+document.getElementById("loadLayout").addEventListener("click", () => {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) widgets = JSON.parse(raw);
+});
+
+async function refreshTags() {
+  const r = await fetch("/api/tags");
+  const data = await r.json();
+  const flat = {};
+  for (const plc of Object.keys(data)) for (const t of Object.keys(data[plc])) flat[t] = data[plc][t].value;
+  window.__tagValues = flat;
+}
+
+(async function init() {
+  await loadTags();
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (raw) widgets = JSON.parse(raw);
+  await refreshTags();
+  setInterval(refreshTags, 2000);
+  draw();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GSCADA — Industrial HMI</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a212b;
+    --panel-2: #232c38;
+    --border: #2d3743;
+    --border-hi: #3a4757;
+    --text: #d6dde6;
+    --text-dim: #7a8794;
+    --accent: #ff5a3c;
+    --accent-2: #00d68f;
+    --led-on: #00d68f;
+    --coil-on: #ff8a3c;
+    --alarm: #ff5252;
+    --warn: #ffb547;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Consolas', 'Menlo', 'Courier New', monospace;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 14px;
+    font-size: 13px;
+  }
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(180deg, #1f2933, var(--panel));
+    padding: 10px 18px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 12px;
+  }
+  .header h1 { font-size: 17px; color: var(--accent); letter-spacing: 2px; }
+  .header h1 .sub { color: var(--text-dim); font-weight: 400; font-size: 11px; margin-left: 8px; }
+  .header .status { display: flex; align-items: center; gap: 8px; }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; background: #555; }
+  .status-dot.running { background: var(--led-on); box-shadow: 0 0 8px rgba(0,214,143,0.6); }
+  .status-dot.disconnected { background: var(--alarm); }
+  .links { display: flex; gap: 8px; }
+  .links a {
+    padding: 5px 10px; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 4px; color: var(--text); text-decoration: none; font-size: 11px;
+  }
+  .links a:hover { border-color: var(--accent); }
+  .alarms-bar {
+    padding: 8px 14px; border: 1px solid var(--border); border-radius: 6px;
+    margin-bottom: 12px; background: var(--panel);
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  }
+  .alarms-bar .lbl { font-size: 11px; color: var(--text-dim); text-transform: uppercase; }
+  .alarm-chip {
+    padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+    border: 1px solid var(--border);
+  }
+  .alarm-chip.high { background: rgba(255,82,82,0.15); border-color: var(--alarm); color: var(--alarm); }
+  .alarm-chip.medium { background: rgba(255,181,71,0.15); border-color: var(--warn); color: var(--warn); }
+  .alarm-chip.low { background: rgba(122,135,148,0.15); color: var(--text-dim); }
+  .alarm-chip button {
+    margin-left: 8px; background: transparent; border: 1px solid currentColor;
+    color: inherit; padding: 1px 6px; border-radius: 3px; cursor: pointer; font: inherit;
+  }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px; }
+  .plc-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px;
+  }
+  .plc-card.offline { opacity: 0.7; border-color: var(--alarm); }
+  .plc-card h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--accent);
+    border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 10px;
+    display: flex; justify-content: space-between;
+  }
+  .plc-card h2 .conn { color: var(--text-dim); font-size: 10px; letter-spacing: 1px; }
+  .plc-card h2 .conn.online { color: var(--led-on); }
+  .plc-card h2 .conn.offline { color: var(--alarm); }
+  .tag-row {
+    display: grid; grid-template-columns: 1fr 80px 60px;
+    align-items: center; padding: 5px 0; font-size: 12px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .tag-row:last-child { border-bottom: none; }
+  .tag-row .name { color: var(--text); }
+  .tag-row .val { text-align: right; font-weight: 700; color: var(--text); }
+  .tag-row .val.stale { color: var(--alarm); }
+  .tag-row .unit { color: var(--text-dim); font-size: 10px; text-align: left; padding-left: 6px; }
+  .bar { height: 4px; background: var(--led-off); border-radius: 2px; margin-top: 3px; overflow: hidden; }
+  .bar > div { height: 100%; background: var(--led-on); transition: width 0.3s; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>GSCADA <span class="sub">— SUPERVISORY CONTROL</span></h1>
+  <div class="status">
+    <span id="statusText">CONNECTING</span>
+    <span class="status-dot" id="statusDot"></span>
+  </div>
+  <div class="links">
+    <a href="index.html">Overview</a>
+    <a href="trends.html">Trends</a>
+    <a href="mimic.html">Mimic</a>
+  </div>
+</div>
+
+<div class="alarms-bar" id="alarmsBar">
+  <span class="lbl">Active Alarms</span>
+  <span class="text-dim" id="alarmsEmpty">None</span>
+</div>
+
+<div class="grid" id="plcGrid"></div>
+
+<script>
+(function () {
+  "use strict";
+  const WS_RETRY_INITIAL_MS = 1000;
+  const WS_RETRY_MAX_MS = 15000;
+  let ws = null;
+  let reconnectDelay = WS_RETRY_INITIAL_MS;
+  let reconnectTimer = null;
+
+  function $(id) { return document.getElementById(id); }
+  function setStatus(text, running) {
+    $("statusText").textContent = text;
+    $("statusDot").className = "status-dot" + (running ? " running" : " disconnected");
+  }
+  function renderAlarms(alarms) {
+    const bar = $("alarmsBar");
+    bar.innerHTML = '<span class="lbl">Active Alarms</span>';
+    if (!alarms.length) {
+      const span = document.createElement("span");
+      span.className = "text-dim";
+      span.textContent = "None";
+      bar.appendChild(span);
+      return;
+    }
+    for (const a of alarms) {
+      const chip = document.createElement("span");
+      chip.className = "alarm-chip " + (a.severity || "low");
+      chip.textContent = a.message || a.tag;
+      const btn = document.createElement("button");
+      btn.textContent = "ACK";
+      btn.addEventListener("click", () => ackAlarm(a.id));
+      chip.appendChild(btn);
+      bar.appendChild(chip);
+    }
+  }
+  async function ackAlarm(id) {
+    try {
+      await fetch("/api/alarms/" + id + "/ack", { method: "POST" });
+    } catch (e) { console.error("ack error:", e); }
+  }
+  function renderPLCs(plcs) {
+    const grid = $("plcGrid");
+    grid.innerHTML = "";
+    for (const plc of plcs) {
+      const card = document.createElement("div");
+      card.className = "plc-card" + (plc.online ? "" : " offline");
+      const h2 = document.createElement("h2");
+      h2.innerHTML =
+        '<span>' + plc.name + ' <span class="conn">@ ' + plc.host + ':' + plc.port + '</span></span>' +
+        '<span class="conn ' + (plc.online ? "online" : "offline") + '">' +
+        (plc.online ? "● ONLINE" : "○ OFFLINE") + '</span>';
+      card.appendChild(h2);
+      if (!plc.online && plc.last_error) {
+        const err = document.createElement("div");
+        err.style.cssText = "color:#ff6b6b;font-size:11px;margin-bottom:6px;";
+        err.textContent = "err: " + plc.last_error;
+        card.appendChild(err);
+      }
+      for (const tag of plc.tags) {
+        const row = document.createElement("div");
+        row.className = "tag-row";
+        const valStr = tag.is_stale ? "STALE" : (tag.value === null ? "—" : String(tag.value));
+        row.innerHTML =
+          '<span class="name">' + tag.name + '</span>' +
+          '<span class="val' + (tag.is_stale ? " stale" : "") + '">' + valStr + '</span>' +
+          '<span class="unit">' + (tag.unit || "") + '</span>';
+        card.appendChild(row);
+        // Los tags numericos con unidad "%" muestran una barra.
+        if (!tag.is_stale && tag.value !== null && tag.unit === "%") {
+          const bar = document.createElement("div");
+          bar.className = "bar";
+          const fill = document.createElement("div");
+          fill.style.width = Math.max(0, Math.min(100, tag.value)) + "%";
+          bar.appendChild(fill);
+          card.appendChild(bar);
+        }
+      }
+      grid.appendChild(card);
+    }
+  }
+  function applyState(payload) {
+    renderAlarms(payload.alarms || []);
+    renderPLCs(payload.plcs || []);
+  }
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    setStatus("RETRY " + (reconnectDelay / 1000).toFixed(1) + "s", false);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connectWebSocket();
+    }, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, WS_RETRY_MAX_MS);
+  }
+  function connectWebSocket() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    try {
+      ws = new WebSocket(proto + "//" + location.host + "/ws");
+    } catch (e) { setStatus("ERROR", false); scheduleReconnect(); return; }
+    ws.addEventListener("open", () => { setStatus("RUNNING", true); reconnectDelay = WS_RETRY_INITIAL_MS; });
+    ws.addEventListener("message", (ev) => {
+      try { applyState(JSON.parse(ev.data)); } catch (e) { console.error("parse:", e); }
+    });
+    ws.addEventListener("close", () => { setStatus("DISCONNECTED", false); scheduleReconnect(); });
+    ws.addEventListener("error", () => { setStatus("ERROR", false); });
+  }
+  connectWebSocket();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,66 @@
+# Configuración demo de GSCADA: dos PLCs, 2 alarmas críticas.
+#
+# - PLC Tanque: 192.168.1.10 (level, bomba, alarmas)
+# - PLC Cinta:  192.168.1.11 (RPM, motor running, contador de objetos)
+#
+# Antes de arrancar GSCADA asegurate de que ambos PLCs estén corriendo
+# con sus respectivos programas .lad y process_sim:
+#   PLC 1: python main.py --nic eth0 --ip 192.168.1.10/24 \
+#          --program examples/demo_tanque.lad --cycle 100
+#   PLC 2: python main.py --nic eth0 --ip 192.168.1.11/24 \
+#          --program examples/demo_cinta.lad --cycle 100
+#
+# Arrancá GSCADA con:
+#   python gscada_main.py --config gscada/configs/demo.yaml --port 8080
+
+plcs:
+  - name: "PLC Tanque"
+    host: 192.168.1.10
+    port: 502
+    unit_id: 1
+    poll_interval_ms: 1000
+    tags:
+      - name: "Nivel Tanque"
+        address: 0
+        type: input_register
+        unit: "%"
+      - name: "Bomba Llenado"
+        address: 0
+        type: coil
+      - name: "Alarma Nivel Alto"
+        address: 0
+        type: discrete_input
+      - name: "Alarma Nivel Bajo"
+        address: 1
+        type: discrete_input
+
+  - name: "PLC Cinta"
+    host: 192.168.1.11
+    port: 502
+    unit_id: 1
+    poll_interval_ms: 1000
+    tags:
+      - name: "RPM Motor"
+        address: 1
+        type: input_register
+        unit: "rpm"
+      - name: "Motor Running"
+        address: 2
+        type: discrete_input
+      - name: "Contador Objetos"
+        address: 0
+        type: holding_register
+
+alarms:
+  - tag: "Nivel Tanque"
+    condition: "> 90"
+    severity: high
+    message: "Nivel crítico en tanque"
+  - tag: "Nivel Tanque"
+    condition: "< 10"
+    severity: medium
+    message: "Tanque casi vacío"
+  - tag: "Contador Objetos"
+    condition: ">= 100"
+    severity: low
+    message: "100 objetos contados — revisar lote"

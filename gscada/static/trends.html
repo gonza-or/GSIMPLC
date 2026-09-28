@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GSCADA — Trends</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  body { font-family: 'Consolas', monospace; background: #0f1419; color: #d6dde6; padding: 14px; margin: 0; }
+  h1 { color: #ff5a3c; margin-bottom: 12px; font-size: 16px; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+  .toolbar select, .toolbar input {
+    background: #1a212b; color: #d6dde6; border: 1px solid #2d3743;
+    padding: 5px 8px; font: inherit; border-radius: 3px;
+  }
+  .toolbar button {
+    background: #ff5a3c; color: #fff; border: none; padding: 6px 14px;
+    border-radius: 3px; cursor: pointer; font: inherit;
+  }
+  .toolbar a { color: #d6dde6; text-decoration: none; padding: 5px 10px; border: 1px solid #2d3743; border-radius: 3px; }
+  .chart-wrap { background: #1a212b; border: 1px solid #2d3743; border-radius: 6px; padding: 12px; }
+</style>
+</head>
+<body>
+<h1>GSCADA — Trends</h1>
+<div class="toolbar">
+  <a href="index.html">Overview</a>
+  <a href="trends.html">Trends</a>
+  <a href="mimic.html">Mimic</a>
+  <span style="margin-left: 24px;">Tag:</span>
+  <input type="text" id="tagName" value="" placeholder="e.g. Nivel Tanque" style="width: 220px;">
+  <span>Range (min):</span>
+  <input type="number" id="rangeMin" value="10" min="1" max="1440" style="width: 70px;">
+  <button id="reloadBtn">Reload</button>
+  <span id="info" style="color: #7a8794; margin-left: 12px;"></span>
+</div>
+<div class="chart-wrap">
+  <canvas id="chart" height="120"></canvas>
+</div>
+<script>
+let chart = null;
+async function loadTags() {
+  const r = await fetch("/api/plcs");
+  const data = await r.json();
+  const tags = new Set();
+  for (const plc of data.plcs) for (const t of plc.tags) tags.add(t.name);
+  return Array.from(tags).sort();
+}
+async function refresh() {
+  const tag = document.getElementById("tagName").value.trim();
+  if (!tag) { document.getElementById("info").textContent = "Enter a tag name."; return; }
+  const rangeMin = parseInt(document.getElementById("rangeMin").value, 10) || 10;
+  const fromTs = (Date.now() / 1000) - rangeMin * 60;
+  const r = await fetch("/api/trends/" + encodeURIComponent(tag) + "?from=" + fromTs);
+  const data = await r.json();
+  const samples = data.samples || [];
+  document.getElementById("info").textContent = samples.length + " samples";
+  const labels = samples.map(s => new Date(s.timestamp * 1000).toLocaleTimeString());
+  const values = samples.map(s => s.value);
+  const ctx = document.getElementById("chart").getContext("2d");
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: "line",
+    data: { labels: labels, datasets: [{ label: tag, data: values, borderColor: "#00d68f", backgroundColor: "rgba(0,214,143,0.1)", tension: 0.1, pointRadius: 1, fill: true }] },
+    options: { responsive: true, plugins: { legend: { labels: { color: "#d6dde6" } } }, scales: { x: { ticks: { color: "#7a8794" }, grid: { color: "#232c38" } }, y: { ticks: { color: "#7a8794" }, grid: { color: "#232c38" } } } }
+  });
+}
+(async function init() {
+  const tags = await loadTags();
+  if (tags.length && !document.getElementById("tagName").value) {
+    document.getElementById("tagName").value = tags[0];
+  }
+  document.getElementById("reloadBtn").addEventListener("click", refresh);
+  await refresh();
+  setInterval(refresh, 5000);
+})();
+</script>
+</body>
+</html>

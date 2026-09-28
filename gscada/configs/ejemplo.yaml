@@ -1,0 +1,54 @@
+# Configuración de ejemplo de GSCADA.
+#
+# 1 PLC: "PLC Tanque Norte" en 192.168.1.10, con tags típicos de un
+# proceso de nivel (ver examples/demo_tanque.lad y
+# process_sim/scenarios/tanque_simple.yaml).
+#
+# Arrancá GSCADA con:
+#   python gscada_main.py --config gscada/configs/ejemplo.yaml --port 8080
+
+plcs:
+  - name: "PLC Tanque Norte"
+    host: 192.168.1.10
+    port: 502
+    unit_id: 1
+    poll_interval_ms: 1000
+
+    tags:
+      - name: "Nivel Tanque"
+        address: 0
+        type: input_register
+        unit: "%"
+        # scale: 1.0   # si el registro viniera en centésimas, usar 0.01
+
+      - name: "Bomba Llenado"
+        address: 0
+        type: coil
+        unit: "bool"
+
+      - name: "Alarma Nivel Alto"
+        address: 0
+        type: discrete_input
+
+      - name: "Alarma Nivel Bajo"
+        address: 1
+        type: discrete_input
+
+# Alarmas evaluadas en cada poll. El campo `tag` debe matchear
+# exactamente con el nombre de un tag de arriba. `condition` es una
+# expresión simple con operadores >, <, >=, <=, ==, !=.
+alarms:
+  - tag: "Nivel Tanque"
+    condition: "> 90"
+    severity: high
+    message: "Nivel crítico en tanque norte"
+
+  - tag: "Nivel Tanque"
+    condition: "< 10"
+    severity: medium
+    message: "Tanque casi vacío"
+
+  - tag: "Bomba Llenado"
+    condition: "== 1"
+    severity: low
+    message: "Bomba de llenado activa"

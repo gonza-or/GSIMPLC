@@ -1,0 +1,41 @@
+# Ladder: cinta transportadora con conteo de objetos.
+#
+# Mapeo (definido en process_sim/scenarios/demo_cinta.yaml):
+#   I:2  = motor de la cinta "running" (devuelto por el modelo Motor)
+#   I:3  = sensor de objeto (pulso cuando un objeto llega al final)
+#   IR:1 = RPM del motor
+#   Q:1  = arrancar/parar la cinta
+#   HR:0 = contador de objetos (incrementa con CTU en flanco de I:3)
+#
+# Lógica:
+#   - RUNG 0: pulsador de marcha con enclavamiento.
+#     Un botón (I:0 simulado desde el panel) prende Q:1 y se mantiene
+#     con un OTL. El OTU del mismo botón apaga la cinta.
+#   - RUNG 1: arrancar el motor de la cinta con Q:1.
+#   - RUNG 2: contar objetos en C:0 con CTU en flanco ascendente de I:3.
+#   - RUNG 3: copiar C:0.ACC a HR:0 para visualizarlo en el panel.
+
+# ── Rung 0: arranque con latch (I:0 prende, vuelve a pulsar apaga) ──
+RUNG 0 "marcha enclavada con I:0"
+  XIC I:0
+  OTL Q:1
+  XIC I:0
+  OTU Q:1
+END_RUNG
+
+# ── Rung 1: la cinta corre cuando Q:1 está activa ──
+RUNG 1 "alimentar motor de la cinta con Q:1"
+  XIC Q:1
+  OTE Q:1
+END_RUNG
+
+# ── Rung 2: contar objetos detectados por I:3 ──
+RUNG 2 "CTU por cada objeto"
+  XIC I:3
+  CTU C:0 PRE=999999
+END_RUNG
+
+# ── Rung 3: espejo del contador en HR:0 ──
+RUNG 3 "reflejar C:0.ACC en HR:0"
+  MOV C:0.ACC HR:0
+END_RUNG

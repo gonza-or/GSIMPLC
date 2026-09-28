@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GSIMPLC — HMI Panel</title>
+<style>
+  :root {
+    --bg: #0f1419;
+    --panel: #1a212b;
+    --panel-2: #232c38;
+    --border: #2d3743;
+    --border-hi: #3a4757;
+    --text: #d6dde6;
+    --text-dim: #7a8794;
+    --accent: #ff5a3c;
+    --accent-2: #00d68f;
+    --warn: #ffb547;
+    --led-on: #00d68f;
+    --led-on-glow: rgba(0, 214, 143, 0.55);
+    --coil-on: #ff8a3c;
+    --coil-on-glow: rgba(255, 138, 60, 0.55);
+    --led-off: #1f2832;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Consolas', 'Menlo', 'Courier New', monospace;
+    background:
+      radial-gradient(circle at 0% 0%, #1c2530 0%, transparent 40%),
+      radial-gradient(circle at 100% 100%, #182230 0%, transparent 40%),
+      var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 14px;
+    font-size: 13px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(180deg, #1f2933, var(--panel));
+    padding: 10px 18px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 12px;
+  }
+  .header h1 {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--accent);
+  }
+  .header h1 .sub { color: var(--text-dim); font-weight: 400; font-size: 11px; margin-left: 8px; letter-spacing: 1px; }
+  .header .status { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--led-off); display: inline-block; }
+  .status-dot.running { background: var(--led-on); box-shadow: 0 0 8px var(--led-on-glow); }
+  .status-dot.disconnected { background: #d83a3a; box-shadow: 0 0 6px rgba(216,58,58,0.5); }
+
+  /* Info bar */
+  .info-bar {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .info-cell {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 8px 12px;
+  }
+  .info-cell .label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+  .info-cell .value { font-size: 15px; color: var(--text); font-weight: 600; margin-top: 2px; word-break: break-all; }
+  .info-cell .value.accent { color: var(--accent); }
+
+  /* Grid layout */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 12px;
+  }
+  .section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+  }
+  .section h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+    letter-spacing: 1.5px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .section h2 .meta { color: var(--text-dim); font-weight: 400; letter-spacing: 1px; }
+
+  /* I/O rows */
+  .io-row {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 6px;
+  }
+  .io-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 4px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .io-item .lbl { font-size: 9px; color: var(--text-dim); letter-spacing: 1px; }
+  .led {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--led-off);
+    border: 2px solid var(--border-hi);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--text-dim);
+    transition: background 0.1s, box-shadow 0.1s, color 0.1s;
+  }
+  .led.output.on {
+    background: var(--coil-on);
+    border-color: var(--coil-on);
+    box-shadow: 0 0 10px var(--coil-on-glow);
+    color: #1a0a00;
+    font-weight: 700;
+  }
+  .toggle-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--led-off);
+    border: 2px solid var(--border-hi);
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 10px;
+    font-family: inherit;
+    transition: background 0.1s, box-shadow 0.1s, color 0.1s, border-color 0.1s;
+  }
+  .toggle-btn:hover { border-color: var(--accent); }
+  .toggle-btn.on {
+    background: var(--led-on);
+    border-color: var(--led-on);
+    box-shadow: 0 0 10px var(--led-on-glow);
+    color: #00170d;
+    font-weight: 700;
+  }
+
+  /* Holding registers */
+  .reg-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .reg-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .reg-item .lbl { font-size: 10px; color: var(--text-dim); letter-spacing: 1px; }
+  .reg-item input {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 5px 6px;
+    border-radius: 3px;
+    text-align: right;
+  }
+  .reg-item input:focus { border-color: var(--accent); outline: none; }
+  .reg-item input:disabled { color: var(--text-dim); }
+
+  /* Timers (fixed T0..T3) */
+  .timer-row {
+    display: grid;
+    grid-template-columns: 32px 1fr 110px;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .timer-row:last-child { border-bottom: none; }
+  .timer-row .tname { color: var(--accent); font-weight: 700; }
+  .timer-bar { height: 8px; background: var(--led-off); border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
+  .timer-bar-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.15s; }
+  .timer-bar-fill.done { background: var(--led-on); }
+  .timer-info { text-align: right; color: var(--text-dim); font-size: 11px; }
+  .timer-info .dn { color: var(--led-on); font-weight: 700; }
+
+  /* Upload */
+  .upload-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .upload-controls { display: flex; align-items: center; gap: 8px; }
+  .upload-btn {
+    padding: 7px 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .upload-btn:hover { background: #ff7359; }
+  .upload-btn:disabled { background: var(--border-hi); cursor: not-allowed; }
+  .upload-status { font-size: 11px; color: var(--text-dim); }
+  .upload-status.ok { color: var(--led-on); }
+  .upload-status.err { color: #ff6b6b; }
+  .upload-input { display: none; }
+
+  .toast {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    border-radius: 4px;
+    font-size: 12px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s, transform 0.2s;
+    pointer-events: none;
+    max-width: 320px;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.ok { border-left-color: var(--led-on); }
+  .toast.err { border-left-color: #ff6b6b; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>GSIMPLC <span class="sub">— INDUSTRIAL HMI</span></h1>
+  <div class="status">
+    <span id="statusText">CONNECTING</span>
+    <span class="status-dot" id="statusDot"></span>
+  </div>
+</div>
+
+<div class="info-bar">
+  <div class="info-cell">
+    <div class="label">Program</div>
+    <div class="value" id="infoProgram">—</div>
+  </div>
+  <div class="info-cell">
+    <div class="label">Cycle (ms)</div>
+    <div class="value accent" id="infoCycle">—</div>
+  </div>
+  <div class="info-cell">
+    <div class="label">Total Cycles</div>
+    <div class="value" id="infoCycles">0</div>
+  </div>
+  <div class="info-cell">
+    <div class="label">Uptime (s)</div>
+    <div class="value" id="infoUptime">0</div>
+  </div>
+  <div class="info-cell">
+    <div class="label">Cycles / s</div>
+    <div class="value accent" id="infoCps">0</div>
+  </div>
+</div>
+
+<div class="grid">
+
+  <div class="section">
+    <h2>Inputs (I0–I15) <span class="meta" id="inputsCount">0/16 ON</span></h2>
+    <div class="io-row" id="inputsRow"></div>
+  </div>
+
+  <div class="section">
+    <h2>Outputs (Q0–Q15) <span class="meta" id="outputsCount">0/16 ON</span></h2>
+    <div class="io-row" id="outputsRow"></div>
+  </div>
+
+  <div class="section">
+    <h2>Holding Registers (HR0–HR7)</h2>
+    <div class="reg-row" id="holdingRow"></div>
+  </div>
+
+  <div class="section">
+    <h2>Timers (T0–T3)</h2>
+    <div id="timersContainer"></div>
+  </div>
+
+  <div class="section">
+    <h2>Program Loader</h2>
+    <div class="upload-area">
+      <div class="upload-controls">
+        <button class="upload-btn" id="uploadBtn">Load .lad</button>
+        <input type="file" id="fileInput" class="upload-input" accept=".lad,text/plain">
+        <span class="upload-status" id="uploadStatus">No file selected.</span>
+      </div>
+      <div class="upload-status" style="font-size: 10px;">
+        The file is sent to <code>POST /api/program/upload</code> as multipart/form-data
+        and installed into the running scan cycle.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  const NUM_INPUTS  = 16;
+  const NUM_OUTPUTS = 16;
+  const NUM_REGS    = 8;
+  const NUM_TIMERS  = 4;
+  const WS_RETRY_INITIAL_MS = 1000;
+  const WS_RETRY_MAX_MS     = 15000;
+  const TOAST_DURATION_MS   = 2500;
+
+  let ws = null;
+  let reconnectDelay = WS_RETRY_INITIAL_MS;
+  let reconnectTimer = null;
+  let lastProgram = "";
+
+  const $ = (id) => document.getElementById(id);
+
+  function makeIoCell(parent, kind, idx, label) {
+    const cell = document.createElement("div");
+    cell.className = "io-item";
+    const lbl = document.createElement("span");
+    lbl.className = "lbl";
+    lbl.textContent = label;
+    cell.appendChild(lbl);
+    let control;
+    if (kind === "input") {
+      control = document.createElement("button");
+      control.className = "toggle-btn";
+      control.id = "input-" + idx;
+      control.textContent = idx;
+      control.type = "button";
+      control.addEventListener("click", () => toggleInput(idx));
+    } else {
+      control = document.createElement("div");
+      control.className = "led output";
+      control.id = "output-" + idx;
+      control.textContent = idx;
+    }
+    cell.appendChild(control);
+    parent.appendChild(cell);
+  }
+
+  function makeRegCell(parent, idx) {
+    const cell = document.createElement("div");
+    cell.className = "reg-item";
+    const lbl = document.createElement("span");
+    lbl.className = "lbl";
+    lbl.textContent = "HR" + idx;
+    cell.appendChild(lbl);
+    const input = document.createElement("input");
+    input.type = "number";
+    input.id = "holding-" + idx;
+    input.min = 0;
+    input.max = 65535;
+    input.value = 0;
+    input.addEventListener("change", () => {
+      const v = parseInt(input.value, 10);
+      setHolding(idx, Number.isFinite(v) ? v : 0);
+    });
+    cell.appendChild(input);
+    parent.appendChild(cell);
+  }
+
+  function makeTimerRow(parent, idx) {
+    const row = document.createElement("div");
+    row.className = "timer-row";
+
+    const name = document.createElement("span");
+    name.className = "tname";
+    name.textContent = "T" + idx;
+    row.appendChild(name);
+
+    const bar = document.createElement("div");
+    bar.className = "timer-bar";
+    const fill = document.createElement("div");
+    fill.className = "timer-bar-fill";
+    fill.id = "timer-fill-" + idx;
+    fill.style.width = "0%";
+    bar.appendChild(fill);
+    row.appendChild(bar);
+
+    const info = document.createElement("span");
+    info.className = "timer-info";
+    info.id = "timer-info-" + idx;
+    info.innerHTML = "ACC 0 / 0 ms";
+    row.appendChild(info);
+
+    parent.appendChild(row);
+  }
+
+  function buildUI() {
+    const inputsRow  = $("inputsRow");
+    const outputsRow = $("outputsRow");
+    const holdingRow = $("holdingRow");
+    const timersBox  = $("timersContainer");
+    for (let i = 0; i < NUM_INPUTS;  i++) makeIoCell(inputsRow,  "input",  i, "I" + i);
+    for (let i = 0; i < NUM_OUTPUTS; i++) makeIoCell(outputsRow, "output", i, "Q" + i);
+    for (let i = 0; i < NUM_REGS;    i++) makeRegCell(holdingRow, i);
+    for (let i = 0; i < NUM_TIMERS;  i++) makeTimerRow(timersBox, i);
+  }
+
+  async function postJSON(url, body) {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return resp.json();
+  }
+
+  async function toggleInput(addr) {
+    const btn = $("input-" + addr);
+    if (!btn) return;
+    const newVal = !btn.classList.contains("on");
+    btn.classList.toggle("on", newVal); // actualizacion optimista
+    try {
+      const r = await postJSON("/api/io/discrete", { addr: addr, value: newVal });
+      if (!r.ok) {
+        btn.classList.toggle("on", !newVal);
+        toast("Failed to set I" + addr + ": " + (r.error || "?"), "err");
+      }
+    } catch (err) {
+      btn.classList.toggle("on", !newVal);
+      toast("Network error: " + err.message, "err");
+    }
+  }
+
+  async function setHolding(addr, value) {
+    try {
+      const r = await postJSON("/api/io/holding", { addr: addr, value: value });
+      if (!r.ok) toast("Failed to set HR" + addr + ": " + (r.error || "?"), "err");
+    } catch (err) {
+      toast("Network error: " + err.message, "err");
+    }
+  }
+
+  function setOnCount(prefix, count, total) {
+    const el = $(prefix);
+    if (el) el.textContent = count + "/" + total + " ON";
+  }
+
+  function applyState(payload) {
+    let inputCount = 0;
+    if (Array.isArray(payload.inputs)) {
+      for (let i = 0; i < payload.inputs.length && i < NUM_INPUTS; i++) {
+        const btn = $("input-" + i);
+        if (!btn) continue;
+        const on = !!payload.inputs[i];
+        btn.classList.toggle("on", on);
+        if (on) inputCount++;
+      }
+      setOnCount("inputsCount", inputCount, NUM_INPUTS);
+    }
+
+    let coilCount = 0;
+    if (Array.isArray(payload.coils)) {
+      for (let i = 0; i < payload.coils.length && i < NUM_OUTPUTS; i++) {
+        const led = $("output-" + i);
+        if (!led) continue;
+        const on = !!payload.coils[i];
+        led.classList.toggle("on", on);
+        if (on) coilCount++;
+      }
+      setOnCount("outputsCount", coilCount, NUM_OUTPUTS);
+    }
+
+    if (Array.isArray(payload.holding)) {
+      for (let i = 0; i < payload.holding.length && i < NUM_REGS; i++) {
+        const el = $("holding-" + i);
+        if (el && document.activeElement !== el) {
+          el.value = payload.holding[i];
+        }
+      }
+    }
+
+    applyTimers(payload.timers || {});
+
+    if (payload.info) {
+      const newProgram = payload.info.program || "—";
+      if (newProgram !== "—" && newProgram !== lastProgram && lastProgram !== "") {
+        toast("Program changed: " + newProgram, "ok");
+      }
+      lastProgram = newProgram;
+      $("infoProgram").textContent = newProgram;
+      $("infoCycle").textContent   = payload.info.cycle_ms != null ? payload.info.cycle_ms : "—";
+      $("infoCycles").textContent  = payload.info.cycles_total != null ? payload.info.cycles_total : 0;
+      $("infoUptime").textContent  = payload.info.uptime_seconds != null ? payload.info.uptime_seconds : 0;
+      $("infoCps").textContent     = payload.info.cycles_per_second != null ? payload.info.cycles_per_second : 0;
+    }
+  }
+
+  function applyTimers(timers) {
+    for (let i = 0; i < NUM_TIMERS; i++) {
+      const fill = $("timer-fill-" + i);
+      const info = $("timer-info-" + i);
+      if (!fill || !info) continue;
+      const key = String(i);
+      const t = timers[key];
+      if (!t) {
+        fill.style.width = "0%";
+        fill.classList.remove("done");
+        info.innerHTML = "ACC 0 / 0 ms";
+        continue;
+      }
+      const pre = Number(t.PRE) || 0;
+      const acc = Number(t.ACC) || 0;
+      const pct = pre > 0 ? Math.min(100, (acc / pre) * 100) : 0;
+      fill.style.width = pct.toFixed(1) + "%";
+      fill.classList.toggle("done", !!t.DN);
+      info.innerHTML = "ACC " + acc + " / " + pre + " ms"
+        + (t.DN ? ' <span class="dn">[DN]</span>' : "");
+    }
+  }
+
+  function setStatus(text, running) {
+    $("statusText").textContent = text;
+    const dot = $("statusDot");
+    dot.className = "status-dot"
+      + (running ? " running"
+      : (text === "DISCONNECTED" || text === "ERROR") ? " disconnected" : "");
+  }
+
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    setStatus("RETRY " + (reconnectDelay / 1000).toFixed(1) + "s", false);
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connectWebSocket();
+    }, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 2, WS_RETRY_MAX_MS);
+  }
+
+  function connectWebSocket() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    try {
+      ws = new WebSocket(proto + "//" + location.host + "/ws");
+    } catch (err) {
+      setStatus("ERROR", false);
+      scheduleReconnect();
+      return;
+    }
+
+    ws.addEventListener("open", () => {
+      setStatus("RUNNING", true);
+      reconnectDelay = WS_RETRY_INITIAL_MS;
+    });
+
+    ws.addEventListener("message", (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        applyState(data);
+      } catch (err) {
+        console.error("WS parse error:", err);
+      }
+    });
+
+    ws.addEventListener("close", () => {
+      setStatus("DISCONNECTED", false);
+      scheduleReconnect();
+    });
+
+    ws.addEventListener("error", () => {
+      setStatus("ERROR", false);
+      // despues llega el close, que se encarga de reintentar
+    });
+  }
+
+  function setupUpload() {
+    const btn = $("uploadBtn");
+    const input = $("fileInput");
+    const status = $("uploadStatus");
+
+    btn.addEventListener("click", () => input.click());
+
+    input.addEventListener("change", async () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      status.className = "upload-status";
+      status.textContent = "Uploading " + file.name + "…";
+      btn.disabled = true;
+
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const resp = await fetch("/api/program/upload", { method: "POST", body: fd });
+        const data = await resp.json();
+        if (data.ok) {
+          status.className = "upload-status ok";
+          status.textContent = "Loaded " + data.program + " (" + data.rungs + " rungs)";
+          toast("Program loaded: " + data.program, "ok");
+        } else {
+          status.className = "upload-status err";
+          status.textContent = "Error: " + (data.error || "unknown");
+          toast("Load failed: " + (data.error || "unknown"), "err");
+        }
+      } catch (err) {
+        status.className = "upload-status err";
+        status.textContent = "Error: " + err.message;
+        toast("Upload failed: " + err.message, "err");
+      } finally {
+        btn.disabled = false;
+        input.value = "";
+      }
+    });
+  }
+
+  let toastTimer = null;
+  function toast(msg, kind) {
+    const el = $("toast");
+    if (!el) return;
+    el.className = "toast" + (kind ? " " + kind : "");
+    el.textContent = msg;
+    requestAnimationFrame(() => el.classList.add("show"));
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), TOAST_DURATION_MS);
+  }
+
+  buildUI();
+  setupUpload();
+  connectWebSocket();
+})();
+</script>
+</body>
+</html>

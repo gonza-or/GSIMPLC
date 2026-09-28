@@ -1,0 +1,40 @@
+# Ejemplo "Hola Mundo" — contador cíclico con Q:0
+#
+# Comportamiento:
+#   - HR:0 incrementa de a uno en cada scan (0, 1, 2, ...)
+#   - Al llegar a 100, se resetea automáticamente a 0
+#   - Q:0 se activa mientras HR:0 > 50
+#
+# Mapeo:
+#   I:0 = nada
+#   Q:0 = "valor alto" (se ve como LED naranja en el panel web)
+#   HR:0 = contador (se ve en la sección Registros del panel)
+#
+# Para visualizarlo:
+#   1. Levantar el PLC:  python main.py --program examples/contador.lad
+#   2. Abrir el panel:   http://localhost:8080
+#   3. Mirar HR:0 crecer hasta 100, volver a 0, y así.
+#   4. Mirar Q:0 encenderse cuando HR:0 cruza el 50, y apagarse al reset.
+
+# ── Rung 0: detectar cuando HR:0 está en la "mitad alta" (51..99) ──
+# GRT compara ANTES del ADD, así que en el scan en que HR:0 sería 100,
+# esta rung todavía ve el valor anterior (99) y mantiene Q:0 prendido.
+RUNG 0 "Q:0 ON cuando HR:0 > 50"
+  GRT HR:0 50
+  OTE Q:0
+END_RUNG
+
+# ── Rung 1: incrementar HR:0 en cada scan ──
+# Sin contactos previos, esta rung está siempre energizada → ADD se
+# ejecuta en cada scan y HR:0 crece de a 1.
+RUNG 1 "incrementar HR:0 en 1 cada scan"
+  ADD HR:0 1 HR:0
+END_RUNG
+
+# ── Rung 2: reset a 0 cuando HR:0 llega a 100 ──
+# En el scan en que HR:0 es 100, esta rung lo devuelve a 0. La próxima
+# vuelta del contador arranca de nuevo en 1 (Rung 1 la incrementa).
+RUNG 2 "reset a 0 cuando HR:0 llega a 100"
+  EQU HR:0 100
+  MOV 0 HR:0
+END_RUNG

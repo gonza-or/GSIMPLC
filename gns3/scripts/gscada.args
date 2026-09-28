@@ -1,0 +1,1 @@
+--config /opt/gsimplc/gscada/configs/demo.yaml --port 8080

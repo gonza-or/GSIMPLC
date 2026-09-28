@@ -1,0 +1,30 @@
+{
+    "appliance_id": "e5c7f0a0-0001-4c3a-9b2d-000000000001",
+    "name": "GSIMPLC",
+    "category": "guest",
+    "description": "Simulador de PLC generico (Ladder + esclavo Modbus TCP + panel web de E/S). Corre como nodo de GNS3 con IP propia y habla Modbus por el puerto 502.",
+    "vendor_name": "GSIMPLC",
+    "vendor_url": "https://github.com/gsimplc/gsimplc",
+    "product_name": "GSIMPLC",
+    "product_url": "https://github.com/gsimplc/gsimplc",
+    "registry_version": 3,
+    "status": "stable",
+    "maintainer": "GSIMPLC",
+    "maintainer_email": "noreply@gsimplc.local",
+    "symbol": ":/symbols/computer.svg",
+    "docker": {
+        "adapters": 1,
+        "image": "gsimplc:latest",
+        "console_type": "http",
+        "console_http_port": 8080,
+        "console_http_path": "/",
+        "environment": "",
+        "start_command": "",
+        "extra_hosts": "",
+        "extra_volumes": [],
+        "custom_adapters": []
+    },
+    "port_name_format": "eth{0}",
+    "port_segment_size": 0,
+    "usage": "Args por defecto en /etc/gsimplc/gsimplc.args. Se cambian con gsimplc-manage set-args."
+}

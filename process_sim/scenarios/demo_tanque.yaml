@@ -1,0 +1,21 @@
+# Escenario demo: control de nivel de un tanque.
+#
+# Mapeo a la memoria del PLC:
+#   I:0  = nivel alto (>= 90 %)
+#   I:1  = nivel bajo  (<= 10 %)
+#   IR:0 = nivel (0..100 %)
+#   Q:0  = bomba de llenado
+#   HR:0 = setpoint alto (espejo del preset; en este caso 90)
+
+process: "Control de Nivel — Tanque 1000L"
+
+models:
+  - type: Tank
+    name: tanque_demo
+    capacity_liters: 1000
+    fill_rate_lps: 8
+    drain_rate_lps: 3
+    level_input_register: 0
+    high_alarm_input: 0
+    low_alarm_input: 1
+    fill_coil: 0

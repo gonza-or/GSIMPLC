@@ -1,0 +1,35 @@
+# Ladder: control de nivel con histéresis simple.
+#
+# Mapeo (definido en process_sim/scenarios/demo_tanque.yaml):
+#   I:0  = nivel alto   (1 si el tanque está al 90 % o más)
+#   I:1  = nivel bajo   (1 si el tanque está al 10 % o menos)
+#   IR:0 = nivel (0..100 %)
+#   Q:0  = bomba de llenado
+#
+# Lógica de control (histeresis):
+#   - Si NO hay nivel alto → encender la bomba.
+#   - Si hay nivel alto    → apagar la bomba.
+#   - El nivel bajo es informativo (no cambia la decisión, sólo refleja
+#     estado de "tanque casi vacío").
+#
+# Salida HR:0 contiene el nivel en % (espejo de IR:0) para visualizarlo
+# en el panel web del PLC sin necesidad de mirar IR.
+
+# ── Rung 0: bomba ON cuando NO hay nivel alto ──
+RUNG 0 "bomba ON mientras no haya nivel alto"
+  XIO I:0
+  OTE Q:0
+END_RUNG
+
+# ── Rung 1: bomba OFF cuando hay nivel alto (enclavada) ──
+# Esta rung es una salvaguarda: si el XIO de arriba fallara, el OTU
+# forzaría el corte.
+RUNG 1 "bomba OFF cuando nivel alto"
+  XIC I:0
+  OTU Q:0
+END_RUNG
+
+# ── Rung 2: espejo del nivel en HR:0 para el panel ──
+RUNG 2 "reflejar IR:0 en HR:0"
+  MOV IR:0 HR:0
+END_RUNG

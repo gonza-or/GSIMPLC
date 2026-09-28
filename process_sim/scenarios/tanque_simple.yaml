@@ -1,0 +1,28 @@
+# Escenario: control de nivel de un tanque simple
+#
+# Cómo se mapea a la memoria del PLC:
+#   I:0  = alarma de nivel ALTO  (1 cuando el tanque está al 90 % o más)
+#   I:1  = alarma de nivel BAJO  (1 cuando el tanque está al 10 % o menos)
+#   IR:0 = nivel del tanque, en % (0..100)
+#   Q:0  = bomba de llenado (el Ladder la prende/apaga)
+#
+# Cómo escribir un Ladder que lo controle (histeresis simple):
+#   - Mientras NO haya nivel alto, mantener la bomba encendida.
+#   - Si hay nivel alto, apagar la bomba.
+#   - Si hay nivel bajo, asegurar que la bomba está encendida.
+# Eso es lo que hace examples/demo_tanque.lad.
+
+process: "Control de Nivel de Tanque"
+
+models:
+  - type: Tank
+    name: tanque_1
+    capacity_liters: 1000     # capacidad máxima
+    fill_rate_lps: 5          # caudal de la bomba cuando está ON (litros/s)
+    drain_rate_lps: 2         # consumo / drenaje constante (litros/s)
+
+    level_input_register: 0   # IR:0 = nivel en %
+    high_alarm_input: 0       # I:0 = nivel alto (>= 90 %)
+    low_alarm_input: 1        # I:1 = nivel bajo (<= 10 %)
+
+    fill_coil: 0              # Q:0 = contactor de la bomba

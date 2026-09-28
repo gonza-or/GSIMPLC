@@ -1,0 +1,1 @@
+--program /opt/gsimplc/examples/demo_tanque.lad --cycle 100 --panel-port 8080 --modbus-port 502

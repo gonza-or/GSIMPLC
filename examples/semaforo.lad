@@ -1,0 +1,74 @@
+# Ejemplo "Demo visual" — semáforo cíclico
+#
+# Comportamiento:
+#   Q:0 = ROJO     durante los primeros 3 s de cada ciclo
+#   Q:1 = VERDE    durante los siguientes 3 s
+#   Q:2 = AMARILLO durante el último 1 s
+#   luego vuelve a ROJO, y así.
+#   C:0 (visible en HR:0) cuenta la cantidad de ciclos completos.
+#
+# Estrategia: un solo TON de 7000 ms (T:0) que recorre los tres colores.
+# Cada rung compara el acumulador de T:0 (copiado a HR:1) contra los
+# rangos que le corresponden al color.
+#   T:0 <  3000  →  ROJO
+#   3000 ≤ T:0 < 6000  →  VERDE
+#   6000 ≤ T:0 < 7000  →  AMARILLO
+#
+# Detalle de implementación: el TON se "auto-resetea" usando un flag
+# HR:2 que se desactiva un scan después de que T:0 llega a DN, lo cual
+# corta la energía del TON y lo rearma. HR:2 funciona como "arming
+# flag". Sin este patrón el TON se quedaría en DN=True para siempre.
+
+# ── Rung 0: CTU, dispara en el flanco ascendente de T:0.DN ──
+# Va PRIMERO para detectar el flanco de T:0.DN ANTES de que el flag
+# HR:2 (Rung 1) lo apague.
+RUNG 0 "CTU: contar cada flanco de T:0.DN"
+  XIC T:0.DN
+  CTU C:0 PRE=999999
+END_RUNG
+
+# ── Rung 1: armar/desarmar el TON con HR:2 ──
+# Mientras T:0 está corriendo, HR:2 = 1 (XIO T:0.DN es True). Cuando
+# T:0 termina, HR:2 pasa a 0 y el TON se desactiva, reseteando T:0.
+RUNG 1 "arming flag HR:2 = NOT T:0.DN"
+  XIO T:0.DN
+  OTE HR:2
+END_RUNG
+
+# ── Rung 2: TON principal, alimentado por HR:2 ──
+RUNG 2 "TON principal de 7 segundos (armado por HR:2)"
+  XIC HR:2
+  TON T:0 PRE=7000
+END_RUNG
+
+# ── Rung 3: copiar el acumulador de T:0 a HR:1 ──
+# Va inmediatamente después del TON para que las rungs de comparación
+# lean el valor de ESTE scan, no del anterior.
+RUNG 3 "reflejar T:0.ACC en HR:1"
+  MOV T:0.ACC HR:1
+END_RUNG
+
+# ── Rung 4: ROJO mientras HR:1 < 3000 ──
+RUNG 4 "ROJO mientras T:0 < 3000 ms"
+  LES HR:1 3000
+  OTE Q:0
+END_RUNG
+
+# ── Rung 5: VERDE entre 3000 y 6000 ──
+RUNG 5 "VERDE entre 3000 y 6000 ms"
+  GRT HR:1 2999
+  LES HR:1 6000
+  OTE Q:1
+END_RUNG
+
+# ── Rung 6: AMARILLO entre 6000 y 7000 ──
+RUNG 6 "AMARILLO entre 6000 y 7000 ms"
+  GRT HR:1 5999
+  LES HR:1 7000
+  OTE Q:2
+END_RUNG
+
+# ── Rung 7: copiar el counter a HR:0 para visualizarlo en el panel ──
+RUNG 7 "reflejar C:0.ACC en HR:0"
+  MOV C:0.ACC HR:0
+END_RUNG

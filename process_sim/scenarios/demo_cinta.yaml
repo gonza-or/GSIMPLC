@@ -1,0 +1,27 @@
+# Escenario demo: cinta transportadora con sensor de objeto + motor.
+#
+# Mapeo a la memoria del PLC:
+#   I:2  = sensor de objeto (pulso cuando un objeto pasa por el final
+#          de la cinta)
+#   IR:1 = RPM del motor de la cinta
+#   Q:1  = motor de la cinta ON/OFF
+#   HR:1 = setpoint de RPM (no usado por defecto, queda para que el
+#          alumno juegue)
+
+process: "Cinta Transportadora con Sensor"
+
+models:
+  - type: Motor
+    name: motor_cinta
+    max_rpm: 1500
+    accel_rpm_s: 300
+    running_coil: 1
+    rpm_input_register: 1
+    running_input: 2
+
+  - type: Conveyor
+    name: cinta_1
+    speed_mps: 0.5
+    segment_length_m: 1.0
+    motor_coil: 1
+    object_detected_input: 3

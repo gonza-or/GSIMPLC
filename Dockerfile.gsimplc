@@ -1,0 +1,61 @@
+# Imagen del appliance GSIMPLC — corre gsimplc.bin (PLC Ladder + esclavo
+# Modbus + panel web) en un contenedor Ubuntu chico con sshd para
+# gestion remota desde GNS3.
+#
+# La compila gns3/build_images.sh. Para correrla a mano:
+#   docker run --rm -it --name gsimplc \
+#     --cap-add=NET_ADMIN --device=/dev/net/tun \
+#     -p 502:502 -p 8080:8080 -p 2222:22 \
+#     gsimplc:latest
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV GSIMPLC_BIN=gsimplc
+
+# Deps del sistema: iproute2 / iptables para la interfaz TAP,
+# openssh-server para gestion remota, ca-certificates para HTTPS,
+# ifupdown + isc-dhcp-client para la red que inyecta GNS3 (/gns3/init.sh).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        iproute2 iptables openssh-server ca-certificates python3-minimal \
+        ifupdown isc-dhcp-client \
+        curl tini \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/run/sshd /var/log /etc/gsimplc
+
+# Args por defecto. En runtime se cambian con:
+#   docker run -e GSIMPLC_ARGS="--program ... --cycle 50" gsimplc
+COPY gns3/scripts/gsimplc.args /etc/gsimplc/gsimplc.args
+COPY gns3/scripts/manage.sh /usr/local/bin/gsimplc-manage
+COPY gns3/scripts/show-logs.sh /usr/local/bin/gsimplc-show-logs
+
+# El binario y los recursos. Los genera gns3/build_images.sh; tienen
+# que existir antes de compilar la imagen. A mano:
+#   ./setup.sh            # deja dist/gsimplc.bin
+#   cp dist/gsimplc.bin gns3/
+COPY dist/gsimplc.bin /usr/local/bin/gsimplc.bin
+COPY examples /opt/gsimplc/examples
+COPY panel/static /opt/gsimplc/panel/static
+COPY process_sim/scenarios /opt/gsimplc/process_sim/scenarios
+
+# Usuario ssh (gns3 / gns3 por defecto — cambialo para produccion).
+RUN useradd -m -s /bin/bash gns3 \
+    && echo "gns3:gns3" | chpasswd \
+    && mkdir -p /home/gns3/.ssh \
+    && chown -R gns3:gns3 /home/gns3
+RUN sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config \
+    && sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+
+RUN chmod +x /usr/local/bin/gsimplc.bin /usr/local/bin/gsimplc-manage /usr/local/bin/gsimplc-show-logs
+
+EXPOSE 22 502 8080
+
+# El panel tiene que contestar 200 en /api/info.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -fsS http://localhost:8080/api/info >/dev/null || exit 1
+
+# El entrypoint arranca sshd + el binario del PLC y queda esperando.
+COPY gns3/scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]
