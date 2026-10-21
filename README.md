@@ -1,5 +1,14 @@
 # GSIMPLC
 
+[![Tests](https://github.com/gonza-or/GSIMPLC/actions/workflows/tests.yml/badge.svg)](https://github.com/gonza-or/GSIMPLC/actions/workflows/tests.yml)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+> **EN:** GSIMPLC is a PLC simulator written in Python. It runs Ladder
+> programs (`.lad`), serves Modbus TCP and a real-time web I/O panel,
+> ships a separate SCADA/HMI client (GSCADA) with alarms and a SQLite
+> historian, and runs as a native GNS3 node for OT/ICS labs. 97 pytest tests.
+
 **GSIMPLC** es una plataforma genérica de simulación de PLCs en Python.
 Se integra como nodo nativo en GNS3 (con IP propia y Modbus TCP),
 ejecuta programas Ladder que el usuario carga en formato `.lad`, expone
@@ -9,17 +18,37 @@ topología. No está atada a ningún proceso industrial: la lógica
 (una bomba, un semáforo, una línea de producción) la definís vos
 escribiendo un `.lad`.
 
+### Por qué
+
+Practicar automatización y seguridad industrial normalmente exige un
+PLC físico. GSIMPLC permite escribir lógica Ladder, probarla contra un
+proceso simulado y conectarla a un SCADA o a una red virtual de GNS3
+sin hardware.
+
+**Qué incluye:**
+
+- Motor Ladder propio (XIC, XIO, OTE, OTL, OTU, TON, TOF, CTU, CTD, MOV,
+  ADD, SUB y comparaciones) con ramas OR.
+- Servidor Modbus TCP (pymodbus) y panel web con API REST + WebSocket (FastAPI).
+- GSCADA: cliente SCADA/HMI con polling Modbus, alarmas, historial en SQLite,
+  tendencias y mímico.
+- Simulador de procesos físicos (tanque, motor, válvula, sensor, cinta)
+  configurable por YAML.
+- Empaquetado con PyInstaller, imágenes Docker y appliances GNS3.
+
+<!-- TODO: agregar una captura o GIF del panel web y de GSCADA (por ejemplo docs/panel.gif). -->
+
 ---
 
 ## Instalación (3 pasos)
 
 ```bash
 # 1. Clonar
-git clone https://github.com/gsimplc/gsimplc.git
-cd gsimplc
+git clone https://github.com/gonza-or/GSIMPLC.git
+cd GSIMPLC
 
 # 2. Instalar dependencias (Python 3.10+)
-pip install -r requirements.txt
+pip install -r requirements.txt        # para desarrollo/tests: requirements-dev.txt
 
 # 3. Ejecutar en modo desarrollo
 python main.py --program examples/contador.lad
@@ -76,25 +105,26 @@ Los scripts de build:
 Abrí GNS3 → `File` → `Import Appliance` → elegí `gns3/gsimplc.gns3a`
 (y, para el SCADA, `gns3/gscada.gns3a`).
 
-> `gsimplc.gns3a` seleccionado.*
+<!-- TODO captura: diálogo Import Appliance con `gsimplc.gns3a` seleccionado. -->
 
 GNS3 valida el manifiesto y registra un appliance Docker con
 1 interfaz ethernet (`eth0`). Aceptá los defaults.
 
-> 1 interfaz ethernet (`eth0`), imagen `gsimplc:latest`.*
+<!-- TODO captura: appliance con 1 interfaz ethernet (`eth0`), imagen `gsimplc:latest`. -->
 
 ### 3. Dropear en el canvas
 
 Una vez importado, el template aparece en la barra lateral bajo
 `Guest`. Arrastralo al canvas como cualquier router.
 
-> ya arrastrado al canvas.*
+<!-- TODO captura: nodo GSIMPLC ya arrastrado al canvas. -->
 
 ### 4. Cablear y configurar
 
 Conectá su `eth0` a un switch o a otro nodo. Los argumentos por
 defecto viven en `/etc/gsimplc/gsimplc.args` dentro de la imagen; para
-cambiarlos usá el comando de gestión por SSH (`gns3` / `gns3`):
+cambiarlos usá el comando de gestión por SSH (`gns3` / `gns3`; credenciales
+pensadas solo para laboratorio, cambialas si el nodo queda expuesto):
 
 ```bash
 # dentro del nodo (o vía docker exec)
@@ -128,7 +158,7 @@ Desde otra máquina apuntá:
 - `modbus 192.168.1.10 -p 502 -t 0x01 -r 1 -c 8` (con `pymodbus` o
   similar) para leer Q0..Q7
 
-> con Q:0 prendido y HR:0 mostrando un valor numérico.*
+<!-- TODO captura: panel HMI con Q:0 prendido y HR:0 mostrando un valor numérico. -->
 
 ---
 
@@ -264,8 +294,12 @@ Sin TAP: binda a `--host` (default `0.0.0.0`).
 ## Tests
 
 ```bash
+pip install -r requirements-dev.txt
 pytest tests/ -v
 ```
+
+GitHub Actions corre la suite en cada push y pull request
+([`.github/workflows/tests.yml`](.github/workflows/tests.yml)) con Python 3.10 y 3.12.
 
 La suite cubre:
 
@@ -280,4 +314,4 @@ La suite cubre:
 
 ## Licencia
 
-MIT.
+[MIT](LICENSE) © 2026 Gonzalo Ortiz.

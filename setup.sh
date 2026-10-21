@@ -112,8 +112,8 @@ ensure_pip_install() {
     ${PIP_BIN} install ${target} --quiet
 }
 
-ensure_pip_install "-r requirements.txt"
-ok "dependencias instaladas (requirements.txt)"
+ensure_pip_install "-r requirements-dev.txt"
+ok "dependencias instaladas (requirements-dev.txt)"
 
 step "Corriendo los tests"
 ${PYTHON_BIN} -m pytest tests/ -q

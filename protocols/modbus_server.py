@@ -57,7 +57,7 @@ class ServidorModbus:
         identidad = ModbusDeviceIdentification()
         identidad.VendorName = "GSIMPLC"
         identidad.ProductCode = "GSIM-01"
-        identidad.VendorUrl = "https://github.com/gsimplc/gsimplc"
+        identidad.VendorUrl = "https://github.com/gonza-or/GSIMPLC"
         identidad.ProductName = "GSIMPLC"
         identidad.ModelName = "GSIMPLC-V1"
         identidad.MajorMinorRevision = "1.0"
